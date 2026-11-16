@@ -868,8 +868,13 @@ function onData(conn, msg){
       const id = conn.meta && conn.meta.id;
       if(!id || (id !== G.white && id !== G.black)) return;          // spectators can't change the game
       if((ng.rev || 0) <= (G.rev || 0)){ conn.send({type: "state", G, force: true}); return; }
-      G = Object.assign({}, ng, {white: G.white, black: G.black, creator: G.creator, names: G.names});
+      // A guest may only change seats by starting a rematch: previous game over, fresh board, colours swapped.
+      const swap = G.status === "over" && ng.moves.length === 0 && G.white && G.black && ng.white === G.black && ng.black === G.white;
+      const seats = swap ? {white: ng.white, black: ng.black} : {white: G.white, black: G.black};
+      G = Object.assign({}, ng, seats, {creator: G.creator, names: G.names});
       saveRoom(); onState(); broadcast(conn);
+      // if the host adjusted anything, hand the sender the final version so both sides agree
+      if(G.white !== ng.white || G.black !== ng.black) conn.send({type: "state", G, force: true});
     } else {
       if(msg.force || !G || (ng.rev || 0) > (G.rev || 0)){ G = ng; saveRoom(); onState(); refreshOnline(); }
     }
