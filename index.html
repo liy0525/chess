@@ -1,0 +1,1437 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="和朋友在线下 3D 国际象棋：发链接邀请，不用注册登录。">
+<title>对弈室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&text=%E2%99%94%E2%99%95%E2%99%96%E2%99%97%E2%99%98%E2%99%99%E2%99%9A%E2%99%9B%E2%99%9C%E2%99%9D%E2%99%9E%E2%99%9F&display=block">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+/* Layout: tournament-hall table — steel-blue board on a quiet ink/stone ground, brass marks the live clock and the last move. Board left, scoresheet right; stacks on phones. */
+:root{
+  --bg:#eceff2; --surface:#ffffff; --surface-2:#f5f7f9; --ink:#16202a; --muted:#5b6977; --line:#d6dce2;
+  --accent:#a97c12; --accent-ink:#ffffff; --accent-soft:rgba(201,152,30,.18);
+  --sq-light:#e3e8eb; --sq-dark:#7c93a7; --hl:rgba(222,174,40,.48); --sel:rgba(222,174,40,.62);
+  --dot:rgba(22,32,42,.28); --danger:#b83a28; --ok:#2c7d55; --check:rgba(214,58,40,.85);
+  --shadow:0 1px 2px rgba(22,32,42,.06),0 8px 28px rgba(22,32,42,.08);
+  --f-display:"Bricolage Grotesque","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --f-piece:"Noto Sans Symbols 2","Segoe UI Symbol","Apple Symbols",serif;
+  --stage-a:#e4eaef; --stage-b:#aebdca;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e141a; --surface:#161f28; --surface-2:#1b2631; --ink:#e6ebef; --muted:#8e9ba7; --line:#27333f;
+  --accent:#dcae42; --accent-ink:#1a1405; --accent-soft:rgba(220,174,66,.16);
+  --sq-light:#c8d0d6; --sq-dark:#5d7589; --hl:rgba(230,184,60,.5); --sel:rgba(230,184,60,.66);
+  --dot:rgba(10,16,22,.38); --danger:#e2674f; --ok:#4fb383; --check:rgba(232,80,60,.88);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); --stage-a:#26323e; --stage-b:#0a0f14; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e141a; --surface:#161f28; --surface-2:#1b2631; --ink:#e6ebef; --muted:#8e9ba7; --line:#27333f;
+  --accent:#dcae42; --accent-ink:#1a1405; --accent-soft:rgba(220,174,66,.16);
+  --sq-light:#c8d0d6; --sq-dark:#5d7589; --hl:rgba(230,184,60,.5); --sel:rgba(230,184,60,.66);
+  --dot:rgba(10,16,22,.38); --danger:#e2674f; --ok:#4fb383; --check:rgba(232,80,60,.88);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35); --stage-a:#26323e; --stage-b:#0a0f14; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{max-width:1180px;margin:0 auto;padding-block:18px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:.02em}
+.brand .mark{display:grid;place-items:center;width:36px;height:36px;border-radius:9px;background:var(--ink);color:var(--bg);font-family:var(--f-piece);font-size:24px;line-height:1}
+.top-r{display:flex;align-items:center;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.pill.on::before{background:var(--ok)} .pill.off::before{background:var(--danger)}
+.icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:grid;place-items:center}
+.icon-btn[aria-pressed="false"]{color:var(--muted);text-decoration:line-through}
+
+/* Lobby */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;margin-bottom:22px}
+.hero h1{font-family:var(--f-display);font-weight:800;font-size:clamp(30px,5vw,52px);line-height:1.05;margin:0 0 10px;text-wrap:balance;letter-spacing:-.01em}
+.hero p{margin:0;color:var(--muted);max-width:56ch}
+.notation{font-family:var(--f-mono);font-size:13px;color:var(--muted);text-align:right;line-height:1.7;border-left:2px solid var(--accent);padding-left:12px}
+.notation b{color:var(--ink);font-weight:700}
+.lobby-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:18px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+.card h2{font-family:var(--f-display);font-weight:600;font-size:19px;margin:0 0 16px}
+.card h3{font-family:var(--f-display);font-weight:600;font-size:15px;margin:0}
+.field{display:grid;gap:8px;margin-bottom:16px}
+.label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.seg{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;padding:8px 6px;border-radius:7px;cursor:pointer;font-weight:500;color:var(--muted);white-space:nowrap}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--f-mono);font-size:13.5px;font-weight:500}
+.chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.custom{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--muted);font-size:14px}
+.custom input{width:76px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);font-family:var(--f-mono);font-size:14px;text-align:center}
+.summary{font-size:14px;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px dashed var(--line);margin-bottom:16px}
+.summary b{font-family:var(--f-mono)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);padding:9px 14px;border-radius:9px;cursor:pointer;font-weight:500;transition:background .15s,border-color .15s;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.accent{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--danger)}
+.btn.danger.armed{background:var(--danger);color:#fff;border-color:var(--danger)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:5px 10px;font-size:13px}
+.note{font-size:13px;color:var(--muted);margin:12px 0 0}
+.glist{display:grid;gap:8px}
+.gsec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:6px 0 0}
+.grow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.gtc{font-family:var(--f-mono);font-size:13px;font-weight:700;min-width:58px;text-align:center;padding:4px 6px;border-radius:6px;background:var(--surface);border:1px solid var(--line)}
+.gwho{min-width:0;font-size:14px}
+.gwho .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gwho .s{font-size:12px;color:var(--muted)}
+.gact{display:flex;gap:6px}
+.empty{color:var(--muted);font-size:14px;margin:0;padding:18px;text-align:center;border:1px dashed var(--line);border-radius:10px}
+
+/* Game */
+.game-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:start}
+.board-col{display:grid;gap:10px;justify-items:center;min-width:0}
+.board-col > *{width:min(100%,calc(100vh - 210px));min-width:min(100%,300px)}
+.player{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.player .disc{width:30px;height:30px;border-radius:50%;border:2px solid var(--ink);position:relative}
+.player .disc.w{background:#f7f6f2} .player .disc.b{background:#1b2128}
+.player .disc .on{position:absolute;right:-3px;bottom:-3px;width:11px;height:11px;border-radius:50%;background:var(--muted);border:2px solid var(--surface)}
+.player .disc .on.live{background:var(--ok)}
+.player .who{min-width:0}
+.player .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player .cap{font-family:var(--f-piece);font-size:15px;color:var(--muted);line-height:1.2;min-height:18px;white-space:nowrap;overflow:hidden}
+.player .cap .adv{font-family:var(--f-mono);font-size:12px;margin-left:4px;color:var(--ink)}
+.clock{font-family:var(--f-mono);font-weight:700;font-size:24px;font-variant-numeric:tabular-nums;padding:6px 12px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);min-width:96px;text-align:center;transition:background .2s,color .2s}
+.clock.live{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.clock.low.live{background:var(--danger);border-color:var(--danger);color:#fff;animation:pulse 1s infinite}
+.clock[hidden]{display:none}
+@keyframes pulse{50%{opacity:.75}}
+.board-wrap{position:relative;aspect-ratio:1;max-width:100%;border-radius:10px;overflow:hidden;box-shadow:var(--shadow),0 0 0 6px var(--surface),0 0 0 7px var(--line);container-type:inline-size}
+.board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.sq{position:relative;display:grid;place-items:center;background:var(--sq-light)}
+.sq.d{background:var(--sq-dark)}
+.sq.last::before,.sq.sel::before{content:"";position:absolute;inset:0;background:var(--hl)}
+.sq.sel::before{background:var(--sel)}
+.sq.chk{background-image:radial-gradient(circle,var(--check) 0%,rgba(214,58,40,.35) 45%,transparent 72%)}
+.sq .tgt{position:absolute;width:30%;height:30%;border-radius:50%;background:var(--dot);z-index:2;pointer-events:none}
+.sq .tgt.cap{width:92%;height:92%;background:transparent;border:0.9cqi solid var(--dot)}
+.sq .co{position:absolute;font-family:var(--f-mono);font-size:max(9px,1.6cqi);font-weight:700;line-height:1;pointer-events:none;z-index:1}
+.sq .co.f{right:3px;bottom:2px} .sq .co.r{left:3px;top:3px}
+.sq.d .co{color:var(--sq-light)} .sq:not(.d) .co{color:var(--sq-dark)}
+.pc{position:relative;z-index:3;font-family:var(--f-piece);font-size:10.4cqi;line-height:1;cursor:grab;display:block;width:1em;height:1em;text-align:center}
+.pc::before{content:attr(data-f);position:absolute;inset:0}
+.pc.w::before{color:#fbfaf6}
+.pc.w::after{content:attr(data-o);position:absolute;inset:0;color:#1c232b}
+.pc.b::before{color:#1c232b}
+.pc{filter:drop-shadow(0 .03em .03em rgba(0,0,0,.35))}
+.pc.ghosting{opacity:.25}
+.drag-ghost{position:fixed;z-index:50;pointer-events:none;transform:translate(-50%,-55%) scale(1.12)}
+.board-wrap.is3d{border-radius:18px;box-shadow:var(--shadow);background:radial-gradient(120% 90% at 50% 18%,var(--stage-a),var(--stage-b))}
+#stage3d{position:absolute;inset:0;z-index:1;touch-action:none}
+#stage3d canvas{display:block;width:100%!important;height:100%!important;cursor:grab}
+#stage3d canvas.pick{cursor:pointer}
+.stage-btn{position:absolute;z-index:5;right:10px;bottom:10px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 82%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:5px 10px;border-radius:8px;font-size:12.5px;cursor:pointer}
+.stage-hint{position:absolute;z-index:5;left:10px;bottom:10px;font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--surface) 70%,transparent);padding:4px 9px;border-radius:7px;pointer-events:none}
+.overlay{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:16px;background:color-mix(in srgb,var(--bg) 62%,transparent);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.ov-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 24px;text-align:center;box-shadow:var(--shadow);max-width:340px;width:100%}
+.ov-box h2{font-family:var(--f-display);font-weight:800;font-size:28px;margin:0 0 4px}
+.ov-box p{margin:0 0 16px;color:var(--muted)}
+.ov-box .actions{justify-content:center}
+.overlay.paused{background:color-mix(in srgb,var(--bg) 40%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.promo-row{display:flex;gap:8px;justify-content:center}
+.promo-row button{width:64px;height:64px;border-radius:12px;border:1px solid var(--line);background:var(--sq-light);cursor:pointer;display:grid;place-items:center}
+.promo-row .pc{font-size:44px;cursor:pointer}
+.side{display:grid;gap:12px;min-width:0}
+.side .card{padding:16px}
+.invite .link{display:flex;gap:6px;margin:10px 0 8px}
+.invite input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);font-family:var(--f-mono);font-size:12.5px}
+.invite p{margin:0;font-size:13px;color:var(--muted)}
+.invite .code{font-family:var(--f-mono);font-weight:700;color:var(--ink);letter-spacing:.06em}
+.banner{display:grid;gap:8px}
+.req{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent);font-size:14px;font-weight:500}
+.req .actions{gap:6px}
+.status-line{font-family:var(--f-display);font-weight:600;font-size:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tc-tag{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);margin-top:2px}
+.moves-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.moves{list-style:none;margin:0;padding:0;max-height:260px;overflow-y:auto;display:grid;grid-template-columns:34px 1fr 1fr;font-family:var(--f-mono);font-size:13.5px;font-variant-numeric:tabular-nums}
+.moves .no{color:var(--muted);padding:3px 0}
+.moves button{border:0;background:transparent;text-align:left;padding:3px 6px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:inherit}
+.moves button:hover{background:var(--surface-2)}
+.moves button.cur{background:var(--accent-soft);font-weight:700}
+.moves .none{grid-column:1/-1;color:var(--muted);font-family:var(--f-body);font-size:13.5px;padding:4px 0}
+.review{font-size:12px;display:flex;gap:6px;align-items:center;color:var(--muted)}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.controls .btn{width:100%}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:100;max-width:calc(100% - 32px);text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-width:900px){
+  .game-grid{grid-template-columns:minmax(0,1fr)}
+  .board-col > *{width:min(100%,620px)}
+  .lobby-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:560px){
+  .hero{grid-template-columns:minmax(0,1fr)} .notation{text-align:left}
+  .clock{font-size:20px;min-width:80px;padding:5px 9px}
+  .card{padding:16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.join{display:flex;gap:8px;margin-bottom:16px}
+.join input,.nick input{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--ink);font-size:15px}
+.join input{font-family:var(--f-mono);letter-spacing:.12em;text-transform:lowercase}
+.nick{display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <a class="brand" href="#" id="brand"><span class="mark">♞&#xFE0E;</span><span>对弈室</span></a>
+    <div class="top-r">
+      <span id="netState" class="pill">连接中…</span>
+      <button id="soundBtn" class="icon-btn" aria-pressed="true" aria-label="声音开关" title="声音">♪</button>
+    </div>
+  </header>
+
+  <main id="lobby">
+    <section class="hero">
+      <div>
+        <h1>约朋友，下一盘。</h1>
+        <p>创建对局后把链接发给朋友，对方打开就能对战。双方同意就能悔棋，随时可以暂停，思考时间按你的习惯来。</p>
+      </div>
+      <div class="notation" aria-hidden="true"><b>1.</b> e4 e5 <b>2.</b> Nf3 Nc6<br><b>3.</b> Bb5 a6 <b>4.</b> Ba4 Nf6<br>10+5 · 西班牙开局</div>
+    </section>
+    <div class="lobby-grid">
+      <section class="card">
+        <h2>新对局</h2>
+        <div class="field">
+          <span class="label">思考时间</span>
+          <div class="seg" id="tcMode" role="group" aria-label="计时方式">
+            <button data-v="total" class="on">总时长</button>
+            <button data-v="move">每步限时</button>
+            <button data-v="none">不限时</button>
+          </div>
+        </div>
+        <div class="field" id="tcTotal">
+          <div class="chips" id="totalChips"></div>
+          <div class="custom">自定义：每方 <input id="baseMin" type="number" min="0.5" max="180" step="0.5" value="10" aria-label="每方分钟数"> 分钟，每步加 <input id="incSec" type="number" min="0" max="60" step="1" value="5" aria-label="每步加秒"> 秒</div>
+        </div>
+        <div class="field" id="tcMove" hidden>
+          <div class="chips" id="moveChips"></div>
+          <div class="custom">自定义：每步最多 <input id="perMove" type="number" min="5" max="600" step="5" value="30" aria-label="每步秒数"> 秒</div>
+        </div>
+        <div class="field">
+          <span class="label">我执</span>
+          <div class="seg" id="colorPick" role="group" aria-label="执子颜色">
+            <button data-v="w" class="on">白棋（先手）</button>
+            <button data-v="r">随机</button>
+            <button data-v="b">黑棋</button>
+          </div>
+        </div>
+        <div class="summary" id="tcSummary"></div>
+        <div class="actions">
+          <button class="btn primary" id="createOnline">创建对局并邀请好友</button>
+          <button class="btn" id="createLocal">同屏对战</button>
+        </div>
+        <p class="note" id="onlineNote"></p>
+      </section>
+      <section class="card">
+        <h2>加入好友的房间</h2>
+        <div class="field nick"><span class="label" style="white-space:nowrap">我的昵称</span><input id="nick" maxlength="16" autocomplete="nickname" aria-label="我的昵称"></div>
+        <div class="join"><input id="joinCode" maxlength="12" placeholder="输入 6 位房间码" autocomplete="off" aria-label="房间码"><button class="btn primary" id="joinBtn">加入</button></div>
+        <div class="gsec" style="margin-bottom:8px">最近的房间</div>
+        <div class="glist" id="gameList"></div>
+      </section>
+    </div>
+  </main>
+
+  <main id="game" hidden>
+    <div class="game-grid">
+      <div class="board-col">
+        <div class="player" id="pTop"></div>
+        <div class="board-wrap">
+          <div class="board" id="board" aria-label="棋盘"></div>
+          <div id="stage3d" hidden></div>
+          <span class="stage-hint" id="stageHint" hidden>拖动旋转 · 双指缩放</span>
+          <button class="stage-btn" id="resetCam" hidden>复位视角</button>
+          <div class="overlay paused" id="ovPause" hidden>
+            <div class="ov-box"><h2>已暂停</h2><p id="pauseBy">时钟已停止</p><div class="actions"><button class="btn accent" id="resumeBtn">继续对局</button></div></div>
+          </div>
+          <div class="overlay" id="ovOver" hidden>
+            <div class="ov-box"><h2 id="overTitle"></h2><p id="overReason"></p>
+              <div class="actions" id="overActions"></div></div>
+          </div>
+          <div class="overlay" id="ovPromo" hidden>
+            <div class="ov-box"><p>升变为</p><div class="promo-row" id="promoRow"></div></div>
+          </div>
+        </div>
+        <div class="player" id="pBot"></div>
+      </div>
+      <aside class="side">
+        <div class="card invite" id="invite" hidden>
+          <h3>邀请好友</h3>
+          <div class="link"><input id="inviteLink" readonly aria-label="邀请链接"><button class="btn sm accent" id="copyLink">复制</button></div>
+          <p>好友打开链接就会坐到对面，不用注册登录。也可以让 TA 在主页输入房间码 <span class="code" id="inviteCode"></span>。</p>
+          <p style="margin-top:6px">你是房主，对局期间请保持这个页面开着。不小心关掉了，从主页「最近的房间」重新打开就能接着下。</p>
+        </div>
+        <div class="banner" id="banner"></div>
+        <div class="card">
+          <div class="status-line" id="statusLine">—</div>
+          <div class="tc-tag" id="tcTag"></div>
+        </div>
+        <div class="card">
+          <div class="moves-head"><h3>棋谱</h3><span class="review" id="reviewChip"></span></div>
+          <ol class="moves" id="moveList"></ol>
+        </div>
+        <div class="controls">
+          <button class="btn" id="btnUndo">悔棋</button>
+          <button class="btn" id="btnPause">暂停</button>
+          <button class="btn" id="btnDraw">求和</button>
+          <button class="btn danger" id="btnResign">认输</button>
+          <button class="btn ghost" id="btnView">切换到 2D</button>
+          <button class="btn ghost" id="btnHint">走法提示：开</button>
+          <button class="btn ghost" id="btnFlip">翻转棋盘</button>
+          <button class="btn ghost" id="btnLobby">返回大厅</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+
+const $ = s => document.querySelector(s);
+const FILES = "abcdefgh";
+const VS = "︎";
+const FILLED = {k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
+const OUTLINE = {k:"♔",q:"♕",r:"♖",b:"♗",n:"♘",p:"♙"};
+const VAL = {p:1,n:3,b:3,r:5,q:9,k:0};
+const START = {p:8,n:2,b:2,r:2,q:1};
+const REASON = {checkmate:"将杀",timeout:"超时",resign:"认输",stalemate:"逼和",insufficient:"子力不足",threefold:"三次重复局面",fifty:"五十步规则",agreement:"双方同意和棋"};
+const UNDOABLE_END = ["checkmate","stalemate","insufficient","threefold","fifty"];
+const SIDE_CN = {w:"白方", b:"黑方"};
+
+/* ---------- P2P networking (PeerJS) ----------
+   The room creator (host) keeps the authoritative game state and relays it.
+   Every change bumps G.rev; a peer accepts a state only if its rev is newer,
+   and the host force-syncs whenever someone (re)connects. */
+const PREFIX = "duiyi3d-room-";
+const ICE = {iceServers: [
+  {urls: "stun:stun.l.google.com:19302"},
+  {urls: "stun:stun1.l.google.com:19302"},
+  {urls: "stun:global.stun.twilio.com:3478"},
+  // public relay as a fallback for strict networks (campus / mobile carriers)
+  {urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject"},
+  {urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject"},
+]};
+function lsGet(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : v; }catch(e){ return d; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+let me = lsGet("duiyi-me", null);
+if(!me){ me = "p" + Math.random().toString(36).slice(2, 12); lsSet("duiyi-me", me); }
+let myName = lsGet("duiyi-name", "") || ("棋手" + Math.floor(100 + Math.random()*900));
+let clockOffset = 0;                      // host clock minus this device's clock
+const now = () => Date.now() + clockOffset;
+let peer = null, conns = [], hostConn = null, isHost = false, retryT = null, hostRetries = 0;
+const onlineReady = typeof Peer !== "undefined";
+let gid = null, isLocal = false, G = null;
+let chess = new Chess(), movesKey = null, prevStatus = null;
+let mySide = null, userFlip = false, selected = null, viewPly = null;
+let writeChain = Promise.resolve(), finishingFor = null, openedAt = 0, joining = false;
+let onlineSides = new Set(), overDismissed = false, resignArmed = 0, pendingPromo = null;
+
+
+/* ---------- small helpers ---------- */
+function toast(t){ const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove("show"), 2600); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function genId(){ const a = "abcdefghjkmnpqrstuvwxyz", b = a + "23456789"; let s = a[Math.floor(Math.random()*a.length)]; for(let i=0;i<7;i++) s += b[Math.floor(Math.random()*b.length)]; return s; }
+const opp = s => s === "w" ? "b" : "w";
+function fmtClock(ms){
+  if(ms <= 0) return "0:00";
+  if(ms < 10000) return (ms/1000).toFixed(1);
+  const t = Math.ceil(ms/1000), h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+  return h ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}` : `${m}:${String(s).padStart(2,"0")}`;
+}
+function minLabel(sec){ const m = sec/60; return Number.isInteger(m) ? String(m) : m.toFixed(1); }
+function tcLabel(tc){ if(!tc) return ""; if(tc.mode === "total") return `${minLabel(tc.base)}+${tc.inc}`; if(tc.mode === "move") return `${tc.perMove}秒/步`; return "不限时"; }
+function tcDesc(tc){
+  if(tc.mode === "total") return `每方 <b>${minLabel(tc.base)}</b> 分钟${tc.inc ? `，每走一步加 <b>${tc.inc}</b> 秒` : ""}，用完判负`;
+  if(tc.mode === "move") return `每一步最多思考 <b>${tc.perMove}</b> 秒，超时判负`;
+  return "没有时间限制，慢慢想";
+}
+function pieceHTML(type, color){ return `<span class="pc ${color}" data-f="${FILLED[type]+VS}"${color === "w" ? ` data-o="${OUTLINE[type]+VS}"` : ""}></span>`; }
+
+/* ---------- 3D board ---------- */
+const Board3D = (() => {
+  if(typeof THREE === "undefined" || !THREE.OrbitControls) return null;
+  let renderer, scene, camera, controls, host, dirLight;
+  let pieces = [], dying = [], wb = true, camAnim = null, hoverSq = null, selSq = null, oriented = false;
+  const tiles = [], ov = {}, dot = {}, ring = {}, M = {}, G3 = {};
+  let checkMesh = null, handlers = {click(){}, hover(){}};
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const TARGET = new THREE.Vector3(0, -.3, 0);
+  const lin = hex => new THREE.Color(hex).convertSRGBToLinear();
+  const pos = sq => [FILES.indexOf(sq[0]) - 3.5, 4.5 - Number(sq[1])];
+  const ease = k => k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3)/2;
+  const backOut = k => { const c = 1.6; return 1 + (c+1)*Math.pow(k-1,3) + c*Math.pow(k-1,2); };
+
+  function grain(g, N, color, n, amp){
+    for(let i=0; i<n; i++){
+      const y0 = Math.random()*N, a = amp*(.4 + Math.random()), ph = Math.random()*6;
+      g.strokeStyle = color; g.globalAlpha = .05 + Math.random()*.13; g.lineWidth = (.5 + Math.random()*2.2)*N/256;
+      g.beginPath();
+      for(let x=0; x<=N; x+=N/32){ const y = y0 + Math.sin(x/(N/6) + ph)*a; x ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+  function woodTex(base, dark){
+    const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
+    g.fillStyle = base; g.fillRect(0, 0, 256, 256); grain(g, 256, dark, 70, 5);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+  }
+  let frameCanvas = null;
+  function drawFrame(){
+    const N = 1024, g = frameCanvas.getContext("2d"), u = N/9.4, P = v => (v + 4.7)*u;
+    g.fillStyle = "#3b2517"; g.fillRect(0, 0, N, N); grain(g, N, "#170c05", 160, 14);
+    g.strokeStyle = "#caa263"; g.lineWidth = 4; g.globalAlpha = .9; g.strokeRect(P(-4.07), P(-4.07), 8.14*u, 8.14*u); g.globalAlpha = 1;
+    g.fillStyle = "#ead3a2"; g.font = `700 ${Math.round(u*.3)}px "JetBrains Mono", ui-monospace, monospace`; g.textAlign = "center"; g.textBaseline = "middle";
+    for(let i=0; i<8; i++){
+      const x = P(i - 3.5), z = P(4.5 - (i + 1));
+      g.fillText(FILES[i], x, P(4.38));
+      g.save(); g.translate(x, P(-4.38)); g.rotate(Math.PI); g.fillText(FILES[i], 0, 0); g.restore();
+      g.fillText(String(i + 1), P(-4.38), z);
+      g.save(); g.translate(P(4.38), z); g.rotate(Math.PI); g.fillText(String(i + 1), 0, 0); g.restore();
+    }
+  }
+  function envMap(){
+    const pm = new THREE.PMREMGenerator(renderer), s = new THREE.Scene();
+    s.add(new THREE.Mesh(new THREE.BoxGeometry(30, 30, 30), new THREE.MeshBasicMaterial({color: new THREE.Color(.18, .19, .21), side: THREE.BackSide})));
+    const panel = (x, y, z, w, h, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({color: c, side: THREE.DoubleSide})); m.position.set(x, y, z); m.lookAt(0, 0, 0); s.add(m); };
+    panel(0, 12, 0, 10, 10, new THREE.Color(5, 4.8, 4.5));
+    panel(12, 5, 4, 5, 8, new THREE.Color(2.4, 2.1, 1.8));
+    panel(-12, 4, -3, 5, 8, new THREE.Color(1.2, 1.5, 2.2));
+    const tex = pm.fromScene(s, .04).texture; pm.dispose(); return tex;
+  }
+  function buildGeos(){
+    const L = pts => new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 44);
+    const arc = (cy, r, a0) => { const o = []; for(let i=0; i<=12; i++){ const a = a0 + (Math.PI/2 - a0)*i/12; o.push([Math.max(0, r*Math.cos(a)), cy + r*Math.sin(a)]); } return o; };
+    const base = r => [[0,0],[r,0],[r,.045],[r-.02,.065],[r-.02,.09],[r-.055,.115],[r-.09,.135]];
+    const sph = (r, y, x = 0, z = 0) => { const g = new THREE.SphereGeometry(r, 20, 14); g.translate(x, y, z); return g; };
+    const box = (w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; };
+    G3.p = [L([...base(.29), [.13,.2], [.095,.31], [.15,.335], [.15,.355], [.072,.38], ...arc(.47, .115, -.9)])];
+    G3.r = [L([...base(.31), [.2,.17], [.17,.46], [.25,.5], [.25,.6], [.19,.6], [.19,.57], [0,.57]])];
+    for(let k=0; k<6; k++){ const b = box(.1, .09, .075, .215, .645, 0); b.rotateY(k*Math.PI/3); G3.r.push(b); }
+    const sh = new THREE.Shape(), hp = [[-.17,.19],[.15,.19],[.13,.3],[.09,.4],[.17,.46],[.25,.52],[.27,.58],[.23,.63],[.12,.66],[.07,.74],[.03,.81],[-.02,.76],[-.09,.71],[-.15,.62],[-.19,.48],[-.2,.32]];
+    hp.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1]));
+    const head = new THREE.ExtrudeGeometry(sh, {depth: .15, bevelEnabled: true, bevelThickness: .035, bevelSize: .03, bevelSegments: 3, curveSegments: 6});
+    head.translate(0, 0, -.075); head.rotateY(Math.PI/2);
+    G3.n = [L([...base(.3), [.17,.17], [.16,.21], [0,.21]]), head];
+    G3.b = [L([...base(.3), [.14,.19], [.095,.5], [.165,.53], [.165,.55], [.09,.575], [.12,.62], [.135,.68], [.12,.74], [.08,.8], [.03,.84], [0,.85]]), sph(.042, .885)];
+    G3.q = [L([...base(.33), [.16,.2], [.105,.6], [.19,.64], [.19,.665], [.12,.69], [.15,.78], [.18,.84], [.13,.85], [.06,.86], [0,.87]]), sph(.05, .93)];
+    for(let k=0; k<8; k++){ const a = k*Math.PI/4; G3.q.push(sph(.03, .855, Math.cos(a)*.165, Math.sin(a)*.165)); }
+    G3.k = [L([...base(.34), [.17,.2], [.115,.66], [.2,.7], [.2,.725], [.13,.75], [.16,.86], [.17,.9], [.1,.92], [0,.93]]), box(.055, .21, .055, 0, 1.03, 0), box(.17, .055, .055, 0, 1.05, 0)];
+  }
+  function makePiece(type, color){
+    const g = new THREE.Group();
+    for(const geo of G3[type]){ const m = new THREE.Mesh(geo, color === "w" ? M.white : M.black); m.castShadow = true; m.receiveShadow = true; g.add(m); }
+    if(color === "b") g.rotation.y = Math.PI;
+    scene.add(g); return g;
+  }
+  function buildBoard(){
+    const light = [0,1,2,3].map(() => woodTex("#ead6b1", "#a77c4e")), dark = [0,1,2,3].map(() => woodTex("#8c5b3b", "#3e2210"));
+    [...light, ...dark].forEach(t => t.offset.set(Math.random(), Math.random()));
+    const tileGeo = new THREE.BoxGeometry(1, .24, 1);
+    const ovGeo = new THREE.PlaneGeometry(.98, .98), dotGeo = new THREE.CircleGeometry(.18, 36), ringGeo = new THREE.RingGeometry(.35, .46, 48);
+    for(let f=0; f<8; f++) for(let r=1; r<=8; r++){
+      const sq = FILES[f] + r, [x, z] = pos(sq), isDark = (f + r) % 2 === 1;
+      const mat = new THREE.MeshStandardMaterial({map: (isDark ? dark : light)[(f*3 + r) % 4], roughness: isDark ? .5 : .58, metalness: 0, envMapIntensity: .6});
+      const t = new THREE.Mesh(tileGeo, mat); t.position.set(x, -.12, z); t.receiveShadow = true; t.userData.sq = sq; scene.add(t); tiles.push(t);
+      const o = new THREE.Mesh(ovGeo, new THREE.MeshBasicMaterial({transparent: true, opacity: 0, depthWrite: false})); o.rotation.x = -Math.PI/2; o.position.set(x, .003, z); scene.add(o); ov[sq] = o;
+      const d = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({color: lin(0x3fe08a), transparent: true, opacity: 0, depthWrite: false})); d.rotation.x = -Math.PI/2; d.position.set(x, .01, z); d.visible = false; scene.add(d); dot[sq] = d;
+      const rg = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({color: lin(0xff5a45), transparent: true, opacity: 0, depthWrite: false})); rg.rotation.x = -Math.PI/2; rg.position.set(x, .01, z); rg.visible = false; scene.add(rg); ring[sq] = rg;
+    }
+    frameCanvas = document.createElement("canvas"); frameCanvas.width = frameCanvas.height = 1024; drawFrame();
+    const ft = new THREE.CanvasTexture(frameCanvas); ft.encoding = THREE.sRGBEncoding; ft.anisotropy = 8;
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => { drawFrame(); ft.needsUpdate = true; });
+    const side = new THREE.MeshStandardMaterial({map: woodTex("#3b2517", "#140a04"), roughness: .45, envMapIntensity: .7});
+    const top = new THREE.MeshStandardMaterial({map: ft, roughness: .42, envMapIntensity: .7});
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(9.4, .44, 9.4), [side, side, top, side, side, side]);
+    frame.position.y = -.26; frame.castShadow = true; frame.receiveShadow = true; scene.add(frame);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({opacity: .28}));
+    ground.rotation.x = -Math.PI/2; ground.position.y = -.48; ground.receiveShadow = true; scene.add(ground);
+    const cc = document.createElement("canvas"); cc.width = cc.height = 128; const cg = cc.getContext("2d");
+    const grad = cg.createRadialGradient(64, 64, 4, 64, 64, 64); grad.addColorStop(0, "rgba(255,60,40,1)"); grad.addColorStop(.5, "rgba(255,50,35,.55)"); grad.addColorStop(1, "rgba(255,40,30,0)");
+    cg.fillStyle = grad; cg.fillRect(0, 0, 128, 128);
+    checkMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshBasicMaterial({map: new THREE.CanvasTexture(cc), transparent: true, depthWrite: false}));
+    checkMesh.rotation.x = -Math.PI/2; checkMesh.position.y = .006; checkMesh.visible = false; scene.add(checkMesh);
+  }
+  function camPos(w){ const v = new THREE.Vector3(0, 12.2, w ? 9.6 : -9.6); return v.add(TARGET); }
+  function animateCam(to){
+    const off0 = camera.position.clone().sub(TARGET), off1 = to.clone().sub(TARGET);
+    const s0 = new THREE.Spherical().setFromVector3(off0), s1 = new THREE.Spherical().setFromVector3(off1);
+    let dt = s1.theta - s0.theta; while(dt > Math.PI) dt -= 2*Math.PI; while(dt < -Math.PI) dt += 2*Math.PI;
+    if(Math.abs(Math.abs(dt) - Math.PI) < .01) dt = Math.PI;
+    camAnim = {s0, dtheta: dt, dphi: s1.phi - s0.phi, dr: s1.radius - s0.radius, t0: performance.now(), dur: 750};
+  }
+  function pick(ev){
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((ev.clientX - r.left)/r.width)*2 - 1, -((ev.clientY - r.top)/r.height)*2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects([...tiles, ...pieces.map(p => p.obj)], true)[0];
+    let o = hit && hit.object; while(o && !o.userData.sq) o = o.parent;
+    return o ? o.userData.sq : null;
+  }
+  function resize(){
+    const w = host.clientWidth, h = host.clientHeight; if(!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
+  }
+  function loop(){
+    requestAnimationFrame(loop);
+    if(!host.offsetParent || document.hidden) return;
+    const now = performance.now();
+    if(camAnim){
+      const k = Math.min(1, (now - camAnim.t0)/camAnim.dur), e = ease(k), s = camAnim.s0;
+      const sp = new THREE.Spherical(s.radius + camAnim.dr*e, s.phi + camAnim.dphi*e, s.theta + camAnim.dtheta*e);
+      camera.position.setFromSpherical(sp).add(TARGET); camera.lookAt(TARGET);
+      if(k >= 1) camAnim = null;
+    }
+    controls.update();
+    for(const p of pieces){
+      let x = p.x, z = p.z, y = 0;
+      if(p.anim){
+        const k = Math.min(1, (now - p.anim.t0)/p.anim.dur), e = ease(k);
+        x = p.anim.fx + (p.x - p.anim.fx)*e; z = p.anim.fz + (p.z - p.anim.fz)*e; y = p.anim.hop*Math.sin(Math.PI*k);
+        if(k >= 1) p.anim = null;
+      }
+      const lifted = p.sq === selSq;
+      p.lift += ((lifted ? .22 : 0) - p.lift)*.2;
+      p.obj.position.set(x, y + p.lift + (lifted ? .035*Math.sin(now/240) : 0), z);
+      if(p.pop != null){ const k = Math.min(1, (now - p.pop)/280); p.obj.scale.setScalar(Math.max(.01, backOut(k))); if(k >= 1) p.pop = null; }
+    }
+    dying = dying.filter(d => {
+      const k = (now - d.t)/280;
+      if(k >= 1){ scene.remove(d.obj); return false; }
+      d.obj.scale.setScalar(1 - k*.9); d.obj.position.y = -k*.25; return true;
+    });
+    const pulse = 1 + .12*Math.sin(now/170);
+    for(const sq in dot){ if(dot[sq].visible) dot[sq].scale.setScalar(pulse); if(ring[sq].visible) ring[sq].scale.setScalar(1 + .04*Math.sin(now/170)); }
+    if(checkMesh.visible) checkMesh.material.opacity = .75 + .25*Math.sin(now/200);
+    renderer.render(scene, camera);
+  }
+  function init(el, onClick, onHover){
+    host = el; handlers.click = onClick; handlers.hover = onHover;
+    try{ renderer = new THREE.WebGLRenderer({antialias: true, alpha: true}); }catch(e){ return false; }
+    if(!renderer.getContext()) return false;
+    const mobile = Math.min(screen.width, screen.height) < 700;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    host.appendChild(renderer.domElement);
+    scene = new THREE.Scene(); scene.environment = envMap();
+    camera = new THREE.PerspectiveCamera(36, 1, .1, 100); camera.position.copy(camPos(true)); camera.lookAt(TARGET);
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.copy(TARGET); controls.enableDamping = true; controls.dampingFactor = .08; controls.enablePan = false;
+    controls.minDistance = 7.5; controls.maxDistance = 22; controls.minPolarAngle = .12; controls.maxPolarAngle = 1.2; controls.rotateSpeed = .55;
+    controls.addEventListener("start", () => { camAnim = null; });
+    scene.add(new THREE.HemisphereLight(0xfff3e2, 0x1d2630, .5));
+    dirLight = new THREE.DirectionalLight(0xfff6ea, 1.25); dirLight.position.set(4.5, 12, 6);
+    dirLight.castShadow = true; const s = mobile ? 1024 : 2048; dirLight.shadow.mapSize.set(s, s);
+    Object.assign(dirLight.shadow.camera, {left: -7, right: 7, top: 7, bottom: -7, near: 2, far: 30});
+    dirLight.shadow.bias = -.0004; dirLight.shadow.normalBias = .02; dirLight.shadow.radius = 4; scene.add(dirLight);
+    const fill = new THREE.DirectionalLight(0xa9c2ff, .35); fill.position.set(-7, 5, -5); scene.add(fill);
+    M.white = new THREE.MeshPhysicalMaterial({color: lin(0xf3ebda), roughness: .3, metalness: 0, clearcoat: .7, clearcoatRoughness: .22, envMapIntensity: 1});
+    M.black = new THREE.MeshPhysicalMaterial({color: lin(0x2b2521), roughness: .26, metalness: 0, clearcoat: .9, clearcoatRoughness: .15, envMapIntensity: 1.1});
+    buildGeos(); buildBoard();
+    const cv = renderer.domElement; let down = null;
+    cv.addEventListener("pointerdown", e => { down = {x: e.clientX, y: e.clientY}; });
+    cv.addEventListener("pointerup", e => {
+      if(!down) return; const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+      if(moved < 8) handlers.click(pick(e));
+    });
+    cv.addEventListener("pointermove", e => {
+      if(e.pointerType !== "mouse" || e.buttons) return;
+      const sq = pick(e); cv.classList.toggle("pick", !!sq);
+      if(sq !== hoverSq){ hoverSq = sq; handlers.hover(sq); }
+    });
+    cv.addEventListener("pointerleave", () => { if(hoverSq){ hoverSq = null; handlers.hover(null); } });
+    new ResizeObserver(resize).observe(host); resize();
+    requestAnimationFrame(loop);
+    return true;
+  }
+  function setOrientation(w){
+    if(!oriented){ oriented = true; wb = w; camera.position.copy(camPos(w)); camera.lookAt(TARGET); controls.update(); return; }
+    if(w === wb) return; wb = w; animateCam(camPos(w));
+  }
+  function resetView(){ animateCam(camPos(wb)); }
+  function reset(){ pieces.forEach(p => scene.remove(p.obj)); pieces = []; selSq = null; }
+  function sync(c, o){
+    selSq = o.selected;
+    const desired = [];
+    for(let f=0; f<8; f++) for(let r=1; r<=8; r++){ const sq = FILES[f] + r, p = c.get(sq); if(p) desired.push({sq, type: p.type, color: p.color}); }
+    const instant = pieces.length === 0, now = performance.now();
+    const left = pieces.slice(), next = [];
+    for(const d of desired){
+      const i = left.findIndex(e => e.sq === d.sq && e.type === d.type && e.color === d.color);
+      if(i >= 0){ next.push(left[i]); left.splice(i, 1); d.done = true; }
+    }
+    for(const d of desired){
+      if(d.done) continue;
+      const [tx, tz] = pos(d.sq);
+      const cands = left.filter(e => e.type === d.type && e.color === d.color);
+      if(cands.length){
+        let e = o.last && cands.find(e => e.sq === o.last.from);
+        if(!e) e = cands.sort((a, b) => ((a.x-tx)**2 + (a.z-tz)**2) - ((b.x-tx)**2 + (b.z-tz)**2))[0];
+        left.splice(left.indexOf(e), 1);
+        e.anim = {fx: e.x, fz: e.z, t0: now, dur: e.type === "n" ? 420 : 320, hop: e.type === "n" ? .75 : .14};
+        e.x = tx; e.z = tz; e.sq = d.sq; e.obj.userData.sq = d.sq; next.push(e);
+      } else {
+        const obj = makePiece(d.type, d.color); obj.userData.sq = d.sq;
+        const e = {sq: d.sq, type: d.type, color: d.color, obj, x: tx, z: tz, lift: 0, anim: null, pop: instant ? null : now};
+        obj.position.set(tx, 0, tz); if(!instant) obj.scale.setScalar(.01); next.push(e);
+      }
+    }
+    for(const e of left) dying.push({obj: e.obj, t: now});
+    pieces = next;
+    const amber = lin(0xf2b33d), white = lin(0xffffff);
+    for(const sq in ov){
+      const m = ov[sq].material;
+      if(sq === o.selected){ m.color.copy(amber); m.opacity = .6; }
+      else if(o.last && (o.last.from === sq || o.last.to === sq)){ m.color.copy(amber); m.opacity = .32; }
+      else if(o.targets.has(sq)){ m.color.copy(lin(0x3fe08a)); m.opacity = .14; }
+      else if(o.hover === sq){ m.color.copy(white); m.opacity = .14; }
+      else m.opacity = 0;
+      const t = o.targets.get(sq) || o.preview.get(sq), strong = o.targets.has(sq);
+      const cap = !!(t && t.captured);
+      dot[sq].visible = !!t && !cap; ring[sq].visible = !!t && cap;
+      dot[sq].material.opacity = strong ? .95 : .45; ring[sq].material.opacity = strong ? .95 : .45;
+    }
+    if(o.checkSq){ const [x, z] = pos(o.checkSq); checkMesh.position.x = x; checkMesh.position.z = z; checkMesh.visible = true; }
+    else checkMesh.visible = false;
+  }
+  return {init, sync, reset, setOrientation, resetView};
+})();
+
+/* ---------- sound ---------- */
+let actx = null, soundOn = true;
+try{ soundOn = localStorage.getItem("duiyi-sound") !== "0"; }catch(e){}
+function ensureAudio(){ if(!actx){ try{ actx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){} } if(actx && actx.state === "suspended") actx.resume().catch(()=>{}); }
+function tone(freq, dur, type = "triangle", gain = .18, delay = 0){
+  if(!soundOn || !actx) return;
+  const t0 = actx.currentTime + delay, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + dur);
+  o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + .02);
+}
+function sfx(kind){
+  if(kind === "move") tone(330, .08, "triangle", .2);
+  else if(kind === "capture"){ tone(240, .07, "square", .09); tone(180, .1, "triangle", .2, .04); }
+  else if(kind === "check"){ tone(660, .09, "triangle", .16); tone(880, .12, "triangle", .12, .07); }
+  else if(kind === "end"){ [523,659,784].forEach((f,i) => tone(f, .35, "sine", .12, i*.09)); }
+  else if(kind === "notify") tone(740, .12, "sine", .12);
+}
+
+/* ---------- lobby: time control picker ---------- */
+const tcState = {mode:"total", base:600, inc:5, perMove:30};
+let colorPref = "w";
+const TOTAL_PRESETS = [[1,0],[3,2],[5,0],[10,5],[15,10],[30,0]];
+const MOVE_PRESETS = [10,20,30,60,120];
+function renderTcPicker(){
+  document.querySelectorAll("#tcMode button").forEach(b => b.classList.toggle("on", b.dataset.v === tcState.mode));
+  $("#tcTotal").hidden = tcState.mode !== "total";
+  $("#tcMove").hidden = tcState.mode !== "move";
+  $("#totalChips").innerHTML = TOTAL_PRESETS.map(([m,i]) => `<button class="chip${tcState.base === m*60 && tcState.inc === i ? " on" : ""}" data-m="${m}" data-i="${i}">${m}+${i}</button>`).join("");
+  $("#moveChips").innerHTML = MOVE_PRESETS.map(s => `<button class="chip${tcState.perMove === s ? " on" : ""}" data-s="${s}">${s} 秒</button>`).join("");
+  if(document.activeElement !== $("#baseMin")) $("#baseMin").value = tcState.base/60;
+  if(document.activeElement !== $("#incSec")) $("#incSec").value = tcState.inc;
+  if(document.activeElement !== $("#perMove")) $("#perMove").value = tcState.perMove;
+  document.querySelectorAll("#colorPick button").forEach(b => b.classList.toggle("on", b.dataset.v === colorPref));
+  $("#tcSummary").innerHTML = tcDesc(tcState);
+}
+$("#tcMode").addEventListener("click", e => { const b = e.target.closest("button"); if(!b) return; tcState.mode = b.dataset.v; renderTcPicker(); });
+$("#colorPick").addEventListener("click", e => { const b = e.target.closest("button"); if(!b) return; colorPref = b.dataset.v; renderTcPicker(); });
+$("#totalChips").addEventListener("click", e => { const b = e.target.closest(".chip"); if(!b) return; tcState.base = +b.dataset.m*60; tcState.inc = +b.dataset.i; renderTcPicker(); });
+$("#moveChips").addEventListener("click", e => { const b = e.target.closest(".chip"); if(!b) return; tcState.perMove = +b.dataset.s; renderTcPicker(); });
+$("#baseMin").addEventListener("input", e => { const v = parseFloat(e.target.value); if(v >= .5 && v <= 180){ tcState.base = Math.round(v*60); renderTcPicker(); } });
+$("#incSec").addEventListener("input", e => { const v = parseInt(e.target.value, 10); if(v >= 0 && v <= 60){ tcState.inc = v; renderTcPicker(); } });
+$("#perMove").addEventListener("input", e => { const v = parseInt(e.target.value, 10); if(v >= 5 && v <= 600){ tcState.perMove = v; renderTcPicker(); } });
+function currentTc(){ return {mode: tcState.mode, base: tcState.base, inc: tcState.inc, perMove: tcState.perMove}; }
+
+function newGameState(tc){
+  const ms = tc.mode === "total" ? tc.base*1000 : tc.mode === "move" ? tc.perMove*1000 : 0;
+  return {createdAt: now(), updatedAt: now(), creator: me, white: null, black: null, tc,
+    moves: [], clock: {w: ms, b: ms}, turnStart: null, status: "waiting", pausedBy: null,
+    result: null, undoReq: null, drawReq: null, rematch: null, notice: null};
+}
+
+/* ---------- rooms: storage ---------- */
+function loadRooms(){ try{ return JSON.parse(lsGet("duiyi-rooms", "{}")) || {}; }catch(e){ return {}; } }
+function saveRooms(r){ lsSet("duiyi-rooms", JSON.stringify(r)); }
+function saveRoom(){
+  if(isLocal || !gid || !G) return;
+  const r = loadRooms();
+  r[gid] = {host: isHost, G, savedAt: Date.now()};
+  const keys = Object.keys(r).sort((a, b) => r[b].savedAt - r[a].savedAt);
+  keys.slice(12).forEach(k => delete r[k]);
+  saveRooms(r);
+}
+function genCode(){ const a = "abcdefghjkmnpqrstuvwxyz23456789"; let s = ""; for(let i=0; i<6; i++) s += a[Math.floor(Math.random()*a.length)]; return s; }
+function inviteUrl(code){ return location.href.split("#")[0] + "#r-" + code; }
+
+/* ---------- create / open games ---------- */
+$("#createOnline").addEventListener("click", () => {
+  ensureAudio();
+  if(!onlineReady){ toast("联网组件没有加载出来，请检查网络后刷新"); return; }
+  const side = colorPref === "r" ? (Math.random() < .5 ? "w" : "b") : colorPref;
+  const st = newGameState(currentTc());
+  st[side === "w" ? "white" : "black"] = me;
+  st.names = {[me]: myName}; st.rev = 1;
+  const code = genCode();
+  const r = loadRooms(); r[code] = {host: true, G: st, savedAt: Date.now()}; saveRooms(r);
+  location.hash = "r-" + code;
+});
+$("#createLocal").addEventListener("click", () => {
+  ensureAudio();
+  const st = newGameState(currentTc());
+  st.white = st.black = "local"; st.status = "playing"; st.creator = "local";
+  saveLocal(st);
+  if(location.hash === "#local") openLocal(); else location.hash = "local";
+});
+function saveLocal(st){ lsSet("duiyi-local", JSON.stringify(st)); }
+function loadLocal(){ try{ const s = lsGet("duiyi-local", null); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+
+function cleanupGame(){
+  clearTimeout(retryT); retryT = null;
+  if(peer){ try{ peer.destroy(); }catch(e){} peer = null; }
+  conns = []; hostConn = null; isHost = false; clockOffset = 0; hostRetries = 0;
+  gid = null; G = null; isLocal = false; movesKey = null; prevStatus = null; selected = null; viewPly = null;
+  onlineSides = new Set(); overDismissed = false; joining = false; finishingFor = null; pendingPromo = null; userFlip = false;
+  hover3d = null; if(b3dOK) Board3D.reset();
+  setNet(onlineReady ? "idle" : "nolib");
+}
+function showView(v){ $("#lobby").hidden = v !== "lobby"; $("#game").hidden = v !== "game"; }
+
+function openLocal(){
+  cleanupGame();
+  let st = loadLocal();
+  if(!st){ st = newGameState(currentTc()); st.white = st.black = "local"; st.status = "playing"; saveLocal(st); }
+  isLocal = true; gid = "local"; G = st; openedAt = now();
+  setNet("local");
+  showView("game"); onState();
+}
+
+/* ---------- network status pill ---------- */
+let netState = "idle";
+function setNet(s, extra){
+  netState = s;
+  const el = $("#netState");
+  const map = {
+    idle: ["未联网", ""], nolib: ["联网组件未加载", "off"], local: ["同屏对战", ""],
+    connecting: ["正在连接…", ""], hosting: ["房间已开 · 等好友", "on"], ok: ["已连接", "on"],
+    lost: ["连接断开 · 重连中", "off"], nohost: ["房主不在线 · 重试中", "off"], error: [extra || "连接出错", "off"],
+  };
+  const [t, cls] = map[s] || ["", ""];
+  el.textContent = t; el.className = "pill " + cls;
+}
+
+/* ---------- host side ---------- */
+function openRoom(code){
+  cleanupGame();
+  gid = code; openedAt = Date.now(); showView("game");
+  const rec = loadRooms()[code];
+  $("#board").innerHTML = ""; $("#moveList").innerHTML = "";
+  if(!onlineReady){ $("#statusLine").textContent = "联网组件没有加载出来，请检查网络后刷新"; return; }
+  if(rec && rec.host){ G = rec.G; isHost = true; onState(); startHost(code); }
+  else{ if(rec && rec.G){ G = rec.G; onState(); } else $("#statusLine").textContent = "正在连接房主…"; startGuest(code); }
+}
+function startHost(code){
+  setNet("connecting");
+  peer = new Peer(PREFIX + code, {config: ICE, debug: 0});
+  peer.on("open", () => { hostRetries = 0; setNet(G && G.status === "waiting" ? "hosting" : "ok"); });
+  peer.on("connection", conn => {
+    conn.on("open", () => { conns.push(conn); });
+    conn.on("data", d => onData(conn, d));
+    conn.on("close", () => onConnClose(conn));
+    conn.on("error", () => onConnClose(conn));
+  });
+  peer.on("disconnected", () => { if(peer && !peer.destroyed){ setNet("lost"); setTimeout(() => { try{ peer && !peer.destroyed && peer.reconnect(); }catch(e){} }, 1500); } });
+  peer.on("error", err => {
+    if(gid !== code) return;
+    if(err.type === "unavailable-id"){
+      // the previous tab of this room may still hold the id for a few seconds
+      if(hostRetries++ < 8){ setNet("error", "房间号占用中 · 重试"); try{ peer.destroy(); }catch(e){} retryT = setTimeout(() => { if(gid === code) startHost(code); }, 3000); }
+      else setNet("error", "房间已在别的标签页打开");
+    } else if(err.type === "network" || err.type === "server-error" || err.type === "socket-error" || err.type === "socket-closed"){
+      setNet("lost");
+    } else setNet("error", "连接出错：" + err.type);
+  });
+}
+function onConnClose(conn){
+  const i = conns.indexOf(conn); if(i < 0) return;
+  conns.splice(i, 1);
+  refreshOnline();
+  const id = conn.meta && conn.meta.id;
+  if(G && id && (id === G.white || id === G.black) && id !== me && !conns.some(c => c.meta && c.meta.id === id)){
+    if(G.status === "playing") commit({status: "paused", pausedBy: "net", clock: frozenClock(), turnStart: null});
+    toast("对手断开了连接");
+  }
+}
+function seatGuest(conn){
+  const id = conn.meta.id, name = conn.meta.name || "好友";
+  const names = Object.assign({}, G.names || {}, {[id]: name});
+  const hostSide = G.white === me ? "w" : "b";
+  if(G.white === id || G.black === id){
+    commit({names, notice: {to: hostSide, text: `${name} 回来了`, t: now()}});
+  } else if(G.status === "waiting" && (!G.white || !G.black)){
+    const seat = !G.white ? "white" : "black";
+    commit({[seat]: id, names, status: "playing", notice: {to: hostSide, text: `${name} 已加入，对局开始`, t: now()}});
+    setNet("ok");
+  } else {
+    commit({names});
+  }
+}
+function refreshOnline(){
+  const s = new Set();
+  const sideOf = id => G ? (G.white === id && G.black === id ? "both" : G.white === id ? "w" : G.black === id ? "b" : null) : null;
+  if(isHost){ conns.forEach(c => { const x = c.meta && sideOf(c.meta.id); if(x) s.add(x); }); }
+  else if(hostConn && hostConn.open && G){ const x = sideOf(G.creator); if(x) s.add(x); }
+  onlineSides = s;
+  if(G) renderPlayers();
+}
+
+/* ---------- guest side ---------- */
+function startGuest(code){
+  setNet("connecting");
+  peer = new Peer(undefined, {config: ICE, debug: 0});
+  peer.on("open", () => connectHost(code));
+  peer.on("disconnected", () => { if(peer && !peer.destroyed){ setTimeout(() => { try{ peer && !peer.destroyed && peer.reconnect(); }catch(e){} }, 1500); } });
+  peer.on("error", err => {
+    if(gid !== code) return;
+    if(err.type === "peer-unavailable"){ setNet("nohost"); if(!G) $("#statusLine").textContent = "房主现在不在线，正在等 TA 打开房间…"; scheduleRetry(code); }
+    else if(err.type === "network" || err.type === "server-error" || err.type === "socket-error" || err.type === "socket-closed"){ setNet("lost"); scheduleRetry(code); }
+    else setNet("error", "连接出错：" + err.type);
+  });
+}
+function connectHost(code){
+  if(!peer || peer.destroyed || gid !== code) return;
+  const c = peer.connect(PREFIX + code, {reliable: true});
+  hostConn = c;
+  c.on("open", () => {
+    if(hostConn !== c) return;
+    setNet("ok");
+    c.send({type: "hello", id: me, name: myName, t0: Date.now()});
+    refreshOnline();
+  });
+  c.on("data", d => onData(c, d));
+  c.on("close", () => { if(hostConn !== c) return; setNet("lost"); refreshOnline(); scheduleRetry(code); });
+  c.on("error", () => { if(hostConn !== c) return; scheduleRetry(code); });
+}
+function scheduleRetry(code){
+  clearTimeout(retryT);
+  retryT = setTimeout(() => { if(gid !== code || !peer || peer.destroyed) return; if(!(hostConn && hostConn.open)) connectHost(code); }, 3000);
+}
+
+/* ---------- messages ---------- */
+function validState(s){
+  return s && typeof s === "object" && Array.isArray(s.moves) && s.moves.length < 1200 && s.moves.every(m => typeof m === "string" && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(m))
+    && s.clock && typeof s.clock.w === "number" && typeof s.clock.b === "number" && s.tc && typeof s.status === "string";
+}
+function onData(conn, msg){
+  if(!msg || typeof msg !== "object") return;
+  if(msg.type === "hello" && isHost){
+    conn.meta = {id: String(msg.id || "").slice(0, 40), name: String(msg.name || "").slice(0, 16)};
+    conn.send({type: "pong", t0: msg.t0, th: Date.now()});
+    if(conn.meta.id) seatGuest(conn);
+    conn.send({type: "state", G, force: true});
+    refreshOnline();
+    return;
+  }
+  if(msg.type === "pong" && !isHost){
+    const t1 = Date.now();
+    if(typeof msg.t0 === "number" && typeof msg.th === "number" && t1 - msg.t0 < 5000) clockOffset = msg.th - (msg.t0 + t1)/2;
+    return;
+  }
+  if(msg.type === "state" && validState(msg.G)){
+    const ng = msg.G;
+    if(isHost){
+      const id = conn.meta && conn.meta.id;
+      if(!id || (id !== G.white && id !== G.black)) return;          // spectators can't change the game
+      if((ng.rev || 0) <= (G.rev || 0)){ conn.send({type: "state", G, force: true}); return; }
+      G = Object.assign({}, ng, {white: G.white, black: G.black, creator: G.creator, names: G.names});
+      saveRoom(); onState(); broadcast(conn);
+    } else {
+      if(msg.force || !G || (ng.rev || 0) > (G.rev || 0)){ G = ng; saveRoom(); onState(); refreshOnline(); }
+    }
+  }
+}
+function broadcast(except){
+  const msg = {type: "state", G};
+  if(isHost) conns.forEach(c => { if(c.open && c !== except) try{ c.send(msg); }catch(e){} });
+  else if(hostConn && hostConn.open) try{ hostConn.send(msg); }catch(e){}
+}
+const netOK = () => isLocal || isHost || !!(hostConn && hostConn.open);
+
+/* ---------- state writes ---------- */
+function commit(patch){
+  G = Object.assign({}, G, patch, {updatedAt: now(), rev: ((G && G.rev) || 0) + 1});
+  if(isLocal){ saveLocal(G); onState(); return; }
+  saveRoom(); onState(); broadcast();
+}
+
+/* ---------- derived state ---------- */
+function computeSide(){
+  if(isLocal) return "both";
+  const w = G.white === me, b = G.black === me;
+  return w && b ? "both" : w ? "w" : b ? "b" : null;
+}
+const hotseat = () => mySide === "both";
+function rebuild(moves){ const c = new Chess(); for(const u of moves) c.move({from: u.slice(0,2), to: u.slice(2,4), promotion: u[4] || undefined}); return c; }
+function chessAt(ply){ return rebuild(G.moves.slice(0, ply)); }
+function liveClock(side){
+  let t = G.clock[side];
+  if(G.status === "playing" && G.turnStart && chess.turn() === side) t -= now() - G.turnStart;
+  return Math.max(0, t);
+}
+function endState(c, mover){
+  if(c.in_checkmate()) return {winner: mover, reason: "checkmate"};
+  if(c.in_stalemate()) return {winner: null, reason: "stalemate"};
+  if(c.insufficient_material()) return {winner: null, reason: "insufficient"};
+  if(c.in_threefold_repetition()) return {winner: null, reason: "threefold"};
+  if(c.in_draw()) return {winner: null, reason: "fifty"};
+  return null;
+}
+function canMoveNow(){
+  if(!G || viewPly != null || G.status !== "playing" || pendingPromo || !netOK()) return false;
+  return hotseat() || mySide === chess.turn();
+}
+function whiteBottom(){ const base = mySide !== "b"; return userFlip ? !base : base; }
+
+function onState(){
+  if(!G) return;
+  const key = G.moves.join(" ");
+  if(key !== movesKey){
+    const prevLen = movesKey == null ? null : (movesKey ? movesKey.split(" ").length : 0);
+    chess = rebuild(G.moves);
+    if(prevLen != null && G.moves.length === prevLen + 1){
+      const h = chess.history({verbose: true}), m = h[h.length-1];
+      sfx(chess.in_check() ? "check" : m && m.captured ? "capture" : "move");
+    }
+    movesKey = key; viewPly = null; selected = null;
+  }
+  if(prevStatus && prevStatus !== "over" && G.status === "over"){ sfx("end"); overDismissed = false; }
+  if(G.status !== "over") overDismissed = false;
+  prevStatus = G.status;
+  mySide = computeSide();
+  if(G.notice && G.notice.t > openedAt && (G.notice.to === mySide || hotseat()) && G.notice.t !== onState._lastNotice){
+    onState._lastNotice = G.notice.t; toast(G.notice.text); sfx("notify");
+  }
+  if(G.status === "playing") finishingFor = null;
+  if(isHost && netState === "hosting" && G.status !== "waiting") setNet("ok");
+  render();
+}
+
+/* ---------- names ---------- */
+function nameOf(uid, side){
+  if(isLocal || uid === "local") return SIDE_CN[side];
+  if(!uid) return "等待好友加入…";
+  const nm = (G && G.names && G.names[uid]) || "";
+  if(uid === me) return (myName || nm || "你") + (G && G.white === G.black ? "" : "（你）");
+  return nm || "好友";
+}
+
+/* ---------- rendering ---------- */
+function render(){ renderBoard(); renderPlayers(); renderMoves(); renderSide(); renderOverlays(); }
+
+let view3d = true, hintsOn = true, b3dTried = false, b3dOK = false, hover3d = null;
+try{ view3d = localStorage.getItem("duiyi-3d") !== "0"; hintsOn = localStorage.getItem("duiyi-hints") !== "0"; }catch(e){}
+function ensure3d(){
+  if(b3dTried) return b3dOK;
+  b3dTried = true;
+  b3dOK = !!(Board3D && Board3D.init($("#stage3d"), sq => { if(sq) onSquare(sq, true); }, sq => { hover3d = sq; if(!selected && G) renderBoard(); }));
+  if(!b3dOK){ view3d = false; $("#btnView").hidden = true; }
+  return b3dOK;
+}
+function applyView(){
+  const on = view3d && b3dOK;
+  $("#stage3d").hidden = !on; $("#board").hidden = on; $("#resetCam").hidden = !on; $("#stageHint").hidden = !on;
+  document.querySelector(".board-wrap").classList.toggle("is3d", on);
+  $("#btnView").textContent = on ? "切换到 2D" : "切换到 3D";
+  $("#btnHint").textContent = "走法提示：" + (hintsOn ? "开" : "关");
+}
+function boardInfo(){
+  const c = viewPly == null ? chess : chessAt(viewPly);
+  const hist = c.history({verbose: true}), last = hist[hist.length-1];
+  const targets = new Map(), preview = new Map();
+  if(hintsOn && selected && viewPly == null) chess.moves({square: selected, verbose: true}).forEach(m => targets.set(m.to, m));
+  if(hintsOn && !selected && hover3d && canMoveNow()){ const p = chess.get(hover3d); if(p && p.color === chess.turn()) chess.moves({square: hover3d, verbose: true}).forEach(m => preview.set(m.to, m)); }
+  let checkSq = null;
+  if(c.in_check()){ for(let f=0; f<8; f++) for(let r=1; r<=8; r++){ const sq = FILES[f]+r, p = c.get(sq); if(p && p.type === "k" && p.color === c.turn()) checkSq = sq; } }
+  return {c, last, targets, preview, checkSq};
+}
+function renderBoard(){
+  if(!G) return;
+  const {c, last, targets, preview, checkSq} = boardInfo();
+  if(view3d && ensure3d()){
+    applyView();
+    Board3D.setOrientation(whiteBottom());
+    Board3D.sync(c, {last, selected: viewPly == null ? selected : null, targets, preview, checkSq, hover: hover3d});
+    return;
+  }
+  applyView();
+  const wb = whiteBottom(); let html = "";
+  for(let row=0; row<8; row++) for(let col=0; col<8; col++){
+    const file = wb ? col : 7-col, rank = wb ? 8-row : row+1, sq = FILES[file] + rank;
+    const dark = (file + rank) % 2 === 1, p = c.get(sq), t = targets.get(sq);
+    const cls = ["sq"]; if(dark) cls.push("d");
+    if(last && (last.from === sq || last.to === sq)) cls.push("last");
+    if(selected === sq && viewPly == null) cls.push("sel");
+    if(checkSq === sq) cls.push("chk");
+    html += `<div class="${cls.join(" ")}" data-sq="${sq}">`;
+    if(row === 7) html += `<span class="co f">${FILES[file]}</span>`;
+    if(col === 0) html += `<span class="co r">${rank}</span>`;
+    if(p) html += pieceHTML(p.type, p.color);
+    if(t) html += `<span class="tgt${t.captured ? " cap" : ""}"></span>`;
+    html += `</div>`;
+  }
+  $("#board").innerHTML = html;
+}
+
+function captured(c){
+  const count = {w:{p:0,n:0,b:0,r:0,q:0}, b:{p:0,n:0,b:0,r:0,q:0}};
+  for(let f=0; f<8; f++) for(let r=1; r<=8; r++){ const p = c.get(FILES[f]+r); if(p && p.type !== "k") count[p.color][p.type]++; }
+  const lost = {w:[], b:[]}; let mat = {w:0, b:0};
+  for(const col of ["w","b"]) for(const t of ["q","r","b","n","p"]){
+    const missing = Math.max(0, START[t] - count[col][t]);
+    for(let i=0; i<missing; i++) lost[col].push(t);
+    mat[col] += count[col][t] * VAL[t];
+  }
+  return {lost, mat};
+}
+function playerHTML(side, cap){
+  const uid = side === "w" ? G.white : G.black;
+  const timed = G.tc.mode !== "none";
+  const live = G.status === "playing" && chess.turn() === side && (G.turnStart || G.moves.length === 0) && viewPly == null;
+  const ms = timed ? liveClock(side) : 0;
+  const online = isLocal || onlineSides.has(side) || onlineSides.has("both") || uid === me;
+  const taken = cap.lost[opp(side)].map(t => FILLED[t] + VS).join("");
+  const adv = cap.mat[side] - cap.mat[opp(side)];
+  return `<div class="disc ${side}">${isLocal || !uid ? "" : `<span class="on${online ? " live" : ""}" title="${online ? "在线" : "不在线"}"></span>`}</div>
+    <div class="who"><div class="nm">${esc(nameOf(uid, side))}</div><div class="cap">${taken}${adv > 0 ? `<span class="adv">+${adv}</span>` : ""}</div></div>
+    <div class="clock${live ? " live" : ""}${timed && ms < 10000 ? " low" : ""}" data-side="${side}" ${timed ? "" : "hidden"}>${fmtClock(ms)}</div>`;
+}
+function renderPlayers(){
+  if(!G) return;
+  const c = viewPly == null ? chess : chessAt(viewPly);
+  const cap = captured(c), wb = whiteBottom();
+  $("#pBot").innerHTML = playerHTML(wb ? "w" : "b", cap);
+  $("#pTop").innerHTML = playerHTML(wb ? "b" : "w", cap);
+}
+function tickClocks(){
+  if(!G || $("#game").hidden || G.tc.mode === "none") return;
+  document.querySelectorAll(".clock[data-side]").forEach(el => {
+    const ms = liveClock(el.dataset.side); el.textContent = fmtClock(ms); el.classList.toggle("low", ms < 10000);
+  });
+  if(G.status === "playing" && G.turnStart && (isLocal || mySide)){
+    const t = chess.turn();
+    if(liveClock(t) <= 0 && finishingFor !== gid + ":" + G.moves.length){
+      finishingFor = gid + ":" + G.moves.length;
+      const c = Object.assign({}, G.clock, {[t]: 0});
+      commit({status: "over", result: {winner: opp(t), reason: "timeout"}, clock: c, turnStart: null, undoReq: null, drawReq: null});
+    }
+  }
+}
+setInterval(tickClocks, 100);
+
+function renderMoves(){
+  const h = chess.history(), cur = viewPly == null ? h.length : viewPly;
+  if(!h.length){ $("#moveList").innerHTML = `<li class="none">还没有走棋。白方先走。</li>`; }
+  else{
+    let html = "";
+    for(let i=0; i<h.length; i+=2){
+      html += `<li class="no">${i/2+1}.</li>`;
+      html += `<li><button data-ply="${i+1}" class="${cur === i+1 ? "cur" : ""}">${esc(h[i])}</button></li>`;
+      html += h[i+1] ? `<li><button data-ply="${i+2}" class="${cur === i+2 ? "cur" : ""}">${esc(h[i+1])}</button></li>` : `<li></li>`;
+    }
+    const list = $("#moveList"), atEnd = list.scrollTop + list.clientHeight >= list.scrollHeight - 4;
+    list.innerHTML = html;
+    if(viewPly == null || atEnd) list.scrollTop = list.scrollHeight;
+  }
+  $("#reviewChip").innerHTML = viewPly == null ? "" : `正在查看第 ${viewPly} 步 <button class="btn sm" id="backLive">回到当前</button>`;
+}
+$("#moveList").addEventListener("click", e => {
+  const b = e.target.closest("button[data-ply]"); if(!b) return;
+  const p = +b.dataset.ply; viewPly = p >= G.moves.length ? null : p; selected = null; render();
+});
+$("#reviewChip").addEventListener("click", e => { if(e.target.id === "backLive"){ viewPly = null; render(); } });
+document.addEventListener("keydown", e => {
+  if(!G || $("#game").hidden || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if(e.key === "ArrowLeft"){ const cur = viewPly == null ? G.moves.length : viewPly; viewPly = Math.max(0, cur-1); if(viewPly >= G.moves.length) viewPly = null; render(); }
+  if(e.key === "ArrowRight" && viewPly != null){ viewPly = viewPly + 1 >= G.moves.length ? null : viewPly + 1; render(); }
+});
+
+function ownMoves(side){ const n = G.moves.length; return side === "w" ? Math.ceil(n/2) : Math.floor(n/2); }
+function undoAllowed(){
+  if(!G.moves.length) return false;
+  const st = G.status === "playing" || G.status === "paused" || (G.status === "over" && G.result && UNDOABLE_END.includes(G.result.reason));
+  if(!st) return false;
+  if(hotseat()) return true;
+  return (mySide === "w" || mySide === "b") && ownMoves(mySide) > 0;
+}
+
+function renderSide(){
+  const seated = mySide === "w" || mySide === "b" || hotseat();
+  // invite card
+  const showInvite = !isLocal && G.status === "waiting" && seated;
+  $("#invite").hidden = !showInvite;
+  if(showInvite){
+    $("#inviteCode").textContent = gid;
+    $("#inviteLink").value = inviteUrl(gid);
+  }
+  // requests
+  const reqs = [];
+  if(G.undoReq && G.status !== "waiting"){
+    const by = G.undoReq.by;
+    if(by === mySide) reqs.push(`<div class="req">已请求悔棋，等待对手同意<div class="actions"><button class="btn sm" data-act="undo-cancel">撤回</button></div></div>`);
+    else if(seated && !hotseat()) reqs.push(`<div class="req">对手请求悔棋<div class="actions"><button class="btn sm accent" data-act="undo-accept">同意</button><button class="btn sm" data-act="undo-reject">拒绝</button></div></div>`);
+    else reqs.push(`<div class="req">${SIDE_CN[by]}请求悔棋</div>`);
+  }
+  if(G.drawReq && G.status === "playing"){
+    const by = G.drawReq;
+    if(by === mySide) reqs.push(`<div class="req">已提出和棋，等待对手回应<div class="actions"><button class="btn sm" data-act="draw-cancel">撤回</button></div></div>`);
+    else if(seated && !hotseat()) reqs.push(`<div class="req">对手提议和棋<div class="actions"><button class="btn sm accent" data-act="draw-accept">接受</button><button class="btn sm" data-act="draw-reject">拒绝</button></div></div>`);
+  }
+  $("#banner").innerHTML = reqs.join("");
+  // status line
+  let s;
+  const turn = chess.turn();
+  if(G.status === "waiting") s = "等待好友加入";
+  else if(G.status === "paused") s = "对局已暂停";
+  else if(G.status === "over") s = resultTitle() + " · " + REASON[G.result.reason];
+  else if(hotseat()) s = `${SIDE_CN[turn]}走棋${chess.in_check() ? " · 将军！" : ""}`;
+  else if(mySide === turn) s = `轮到你走${chess.in_check() ? " · 将军！" : ""}`;
+  else if(mySide) s = `等待对手走棋${chess.in_check() ? " · 将军" : ""}`;
+  else s = `${SIDE_CN[turn]}走棋 · 你在观战`;
+  $("#statusLine").textContent = s;
+  $("#tcTag").textContent = (G.tc.mode === "none" ? "不限时" : G.tc.mode === "move" ? `每步限时 ${G.tc.perMove} 秒` : `${tcLabel(G.tc)} · 每方 ${minLabel(G.tc.base)} 分钟，每步加 ${G.tc.inc} 秒`) + (isLocal ? " · 同屏对战" : "");
+  // controls
+  const bU = $("#btnUndo"), bP = $("#btnPause"), bD = $("#btnDraw"), bR = $("#btnResign");
+  [bU,bP,bD,bR].forEach(b => b.hidden = !seated);
+  bU.textContent = !hotseat() && G.undoReq && G.undoReq.by === mySide ? "撤回悔棋请求" : "悔棋";
+  bU.disabled = !(undoAllowed() || (G.undoReq && G.undoReq.by === mySide)) || (!hotseat() && G.undoReq && G.undoReq.by !== mySide);
+  bP.textContent = G.status === "paused" ? "继续" : "暂停";
+  bP.disabled = !(G.status === "playing" || G.status === "paused");
+  bD.textContent = hotseat() ? "判和" : (G.drawReq === mySide ? "撤回求和" : "求和");
+  bD.disabled = G.status !== "playing" || (!hotseat() && G.drawReq && G.drawReq !== mySide);
+  bR.disabled = !(G.status === "playing" || G.status === "paused");
+  if(!(resignArmed > Date.now())){ bR.classList.remove("armed"); bR.textContent = hotseat() ? `${SIDE_CN[turn]}认输` : "认输"; }
+}
+function resultTitle(){
+  const r = G.result; if(!r) return "";
+  if(!r.winner) return "和棋";
+  if(hotseat() || !mySide) return `${SIDE_CN[r.winner]}胜`;
+  return r.winner === mySide ? "你赢了" : "你输了";
+}
+function renderOverlays(){
+  const paused = G.status === "paused";
+  $("#ovPause").hidden = !paused;
+  if(paused){
+    $("#pauseBy").textContent = G.pausedBy === "net" ? "对手断线了，时钟已自动暂停。等对方重新连上后点「继续」。"
+      : (SIDE_CN[G.pausedBy] ? `${SIDE_CN[G.pausedBy]}暂停了对局。` : "") + "时钟已停止，棋盘暂时隐藏。";
+    $("#resumeBtn").hidden = !(mySide);
+  }
+  const over = G.status === "over" && !overDismissed;
+  $("#ovOver").hidden = !over;
+  if(over){
+    $("#overTitle").textContent = resultTitle();
+    $("#overReason").textContent = REASON[G.result.reason] + ` · 共 ${Math.ceil(G.moves.length/2)} 回合`;
+    const seated = !!mySide;
+    let a = "";
+    if(seated) a += `<button class="btn accent" data-act="rematch">再来一局</button>`;
+    if(seated && undoAllowed()) a += `<button class="btn" data-act="undo">悔棋</button>`;
+    a += `<button class="btn" data-act="review">复盘</button><button class="btn" data-act="pgn">复制棋谱</button>`;
+    $("#overActions").innerHTML = a;
+  }
+}
+
+/* ---------- board interaction ---------- */
+let drag = null;
+// Shared click logic for the 2D and 3D boards. Returns true when a piece became selected.
+function onSquare(sq, is3d){
+  ensureAudio();
+  if(!G) return false;
+  if(!canMoveNow()){
+    const p = chess.get(sq);
+    if(viewPly != null) toast("正在复盘，点「回到当前」继续走棋");
+    else if(!netOK()) toast("和房主的连接断了，正在重连…");
+    else if(G.status === "paused") toast("对局已暂停");
+    else if(G.status === "waiting") toast("等好友加入后才能开始");
+    else if(G.status === "playing" && p && p.color === mySide) toast("还没轮到你，等对手走完");
+    return false;
+  }
+  if(selected && sq !== selected && chess.moves({square: selected, verbose: true}).some(m => m.to === sq)){ tryMove(selected, sq); return false; }
+  const p = chess.get(sq);
+  if(p && p.color === chess.turn()){
+    if(is3d && selected === sq){ selected = null; renderBoard(); return false; }
+    if(!chess.moves({square: sq}).length) toast("这个棋子现在没有可走的位置");
+    selected = sq; renderBoard(); return true;
+  }
+  if(selected && hintsOn && is3d) toast("这里不能走，绿点是可以走的位置");
+  selected = null; renderBoard(); return false;
+}
+$("#board").addEventListener("pointerdown", e => {
+  const sqEl = e.target.closest(".sq"); if(!sqEl || !G) return;
+  const sq = sqEl.dataset.sq;
+  if(onSquare(sq, false)){
+    const pc = $(`#board [data-sq="${sq}"] .pc`);
+    if(pc){
+      const ghost = pc.cloneNode(true); ghost.classList.add("drag-ghost");
+      ghost.style.fontSize = getComputedStyle(pc).fontSize;
+      ghost.style.left = e.clientX + "px"; ghost.style.top = e.clientY + "px";
+      document.body.appendChild(ghost); pc.classList.add("ghosting");
+      drag = {from: sq, ghost, pc, x: e.clientX, y: e.clientY, moved: false};
+    }
+  }
+});
+window.addEventListener("pointermove", e => {
+  if(!drag) return;
+  if(Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4) drag.moved = true;
+  drag.ghost.style.left = e.clientX + "px"; drag.ghost.style.top = e.clientY + "px";
+});
+window.addEventListener("pointerup", e => {
+  if(!drag) return;
+  const d = drag; drag = null; d.ghost.remove(); d.pc.classList.remove("ghosting");
+  const el = document.elementFromPoint(e.clientX, e.clientY), sqEl = el && el.closest && el.closest("#board .sq");
+  if(sqEl && sqEl.dataset.sq !== d.from && chess.moves({square: d.from, verbose: true}).some(m => m.to === sqEl.dataset.sq)) tryMove(d.from, sqEl.dataset.sq);
+});
+window.addEventListener("pointercancel", () => { if(drag){ drag.ghost.remove(); drag.pc.classList.remove("ghosting"); drag = null; } });
+
+function tryMove(from, to){
+  const p = chess.get(from);
+  if(p && p.type === "p" && (to[1] === "8" || to[1] === "1")){
+    pendingPromo = {from, to};
+    $("#promoRow").innerHTML = ["q","r","b","n"].map(t => `<button data-p="${t}" aria-label="${t}">${pieceHTML(t, p.color)}</button>`).join("");
+    $("#ovPromo").hidden = false; return;
+  }
+  makeMove(from, to);
+}
+$("#promoRow").addEventListener("click", e => {
+  const b = e.target.closest("button[data-p]"); if(!b || !pendingPromo) return;
+  const {from, to} = pendingPromo; pendingPromo = null; $("#ovPromo").hidden = true; makeMove(from, to, b.dataset.p);
+});
+$("#ovPromo").addEventListener("click", e => { if(e.target.id === "ovPromo"){ pendingPromo = null; $("#ovPromo").hidden = true; selected = null; renderBoard(); } });
+
+function makeMove(from, to, promotion){
+  const side = chess.turn(), first = G.moves.length === 0;
+  const m = chess.move({from, to, promotion: promotion || "q"});
+  if(!m){ selected = null; renderBoard(); return; }
+  const tNow = now(), clock = Object.assign({}, G.clock);
+  if(G.tc.mode === "total" && !first && G.turnStart) clock[side] = Math.max(0, clock[side] - (tNow - G.turnStart)) + G.tc.inc*1000;
+  if(G.tc.mode === "move") clock.w = clock.b = G.tc.perMove*1000;
+  const patch = {moves: G.moves.concat(from + to + (m.promotion || "")), clock, turnStart: tNow, undoReq: null, drawReq: null};
+  const end = endState(chess, side);
+  if(end){ patch.status = "over"; patch.result = end; patch.turnStart = null; }
+  selected = null;
+  commit(patch);
+}
+
+/* ---------- actions: undo / pause / draw / resign ---------- */
+function frozenClock(){
+  const c = Object.assign({}, G.clock), t = chess.turn();
+  if(G.tc.mode === "total" && G.status === "playing" && G.turnStart) c[t] = Math.max(0, c[t] - (now() - G.turnStart));
+  return c;
+}
+function doUndo(n, extra){
+  n = Math.min(n, G.moves.length); if(n <= 0) return;
+  const clock = frozenClock();
+  if(G.tc.mode === "move") clock.w = clock.b = G.tc.perMove*1000;
+  if(G.tc.mode === "total" && G.tc.inc){
+    // take back the increment each undone move earned (the game's first move earns none)
+    for(let i = G.moves.length - 1; i >= G.moves.length - n; i--) if(i > 0){ const s = i % 2 === 0 ? "w" : "b"; clock[s] = Math.max(1000, clock[s] - G.tc.inc*1000); }
+  }
+  const moves = G.moves.slice(0, G.moves.length - n);
+  const patch = {moves, clock, undoReq: null, drawReq: null, turnStart: moves.length ? now() : null};
+  if(G.status === "over"){ patch.status = "playing"; patch.result = null; }
+  if(G.status === "paused") patch.turnStart = null;
+  commit(Object.assign(patch, extra || {}));
+}
+function act(a){
+  if(!G) return;
+  ensureAudio();
+  if(!netOK() && a !== "review" && a !== "pgn"){ toast("和房主的连接断了，正在重连…"); return; }
+  const S = mySide;
+  switch(a){
+    case "undo":
+      if(hotseat()){ if(undoAllowed()) doUndo(1); break; }
+      if(G.undoReq && G.undoReq.by === S){ commit({undoReq: null}); break; }
+      if(undoAllowed()) commit({undoReq: {by: S, at: G.moves.length}});
+      break;
+    case "undo-cancel": commit({undoReq: null}); break;
+    case "undo-accept": {
+      const r = G.undoReq; if(!r) break;
+      if(r.at !== G.moves.length){ commit({undoReq: null}); toast("局面已变化，悔棋请求作废"); break; }
+      doUndo(chess.turn() === r.by ? 2 : 1, {notice: {to: r.by, text: "对手同意了悔棋", t: now()}});
+      break;
+    }
+    case "undo-reject": { const r = G.undoReq; commit({undoReq: null, notice: {to: r ? r.by : opp(S), text: "对手拒绝了悔棋", t: now()}}); break; }
+    case "pause":
+      if(G.status === "playing") commit({status: "paused", pausedBy: S, clock: frozenClock(), turnStart: null});
+      else if(G.status === "paused") commit({status: "playing", pausedBy: null, turnStart: G.moves.length ? now() : null});
+      break;
+    case "draw":
+      if(hotseat()){ commit({status: "over", result: {winner: null, reason: "agreement"}, turnStart: null, clock: frozenClock()}); break; }
+      if(G.drawReq === S) commit({drawReq: null}); else commit({drawReq: S});
+      break;
+    case "draw-cancel": commit({drawReq: null}); break;
+    case "draw-accept": commit({status: "over", result: {winner: null, reason: "agreement"}, drawReq: null, undoReq: null, turnStart: null, clock: frozenClock()}); break;
+    case "draw-reject": commit({drawReq: null, notice: {to: opp(S), text: "对手拒绝了和棋", t: now()}}); break;
+    case "resign": {
+      const loser = hotseat() ? chess.turn() : S;
+      commit({status: "over", result: {winner: opp(loser), reason: "resign"}, turnStart: null, undoReq: null, drawReq: null, clock: frozenClock()});
+      break;
+    }
+    case "review": overDismissed = true; renderOverlays(); break;
+    case "pgn": copyPgn(); break;
+    case "rematch": rematch(); break;
+  }
+}
+$("#banner").addEventListener("click", e => { const b = e.target.closest("[data-act]"); if(b) act(b.dataset.act); });
+$("#overActions").addEventListener("click", e => { const b = e.target.closest("[data-act]"); if(b) act(b.dataset.act); });
+$("#btnUndo").addEventListener("click", () => act("undo"));
+$("#btnPause").addEventListener("click", () => act("pause"));
+$("#resumeBtn").addEventListener("click", () => act("pause"));
+$("#btnDraw").addEventListener("click", () => act("draw"));
+$("#btnResign").addEventListener("click", () => {
+  const b = $("#btnResign");
+  if(resignArmed > Date.now()){ resignArmed = 0; act("resign"); return; }
+  resignArmed = Date.now() + 3000; b.classList.add("armed"); b.textContent = "再点一次确认";
+  setTimeout(() => { if(G) renderSide(); }, 3100);
+});
+$("#btnFlip").addEventListener("click", () => { userFlip = !userFlip; render(); });
+$("#btnView").addEventListener("click", () => {
+  view3d = !view3d; try{ localStorage.setItem("duiyi-3d", view3d ? "1" : "0"); }catch(e){}
+  if(b3dOK) Board3D.reset();
+  render();
+});
+$("#btnHint").addEventListener("click", () => {
+  hintsOn = !hintsOn; try{ localStorage.setItem("duiyi-hints", hintsOn ? "1" : "0"); }catch(e){}
+  toast(hintsOn ? "已打开走法提示：选中棋子会显示能走的位置" : "已关闭走法提示");
+  renderBoard();
+});
+$("#resetCam").addEventListener("click", () => { if(b3dOK) Board3D.resetView(); });
+$("#btnLobby").addEventListener("click", () => { location.hash = ""; });
+$("#brand").addEventListener("click", e => { e.preventDefault(); location.hash = ""; });
+$("#copyLink").addEventListener("click", () => copyText($("#inviteLink").value, "邀请链接已复制", $("#inviteLink")));
+$("#soundBtn").addEventListener("click", () => {
+  soundOn = !soundOn; $("#soundBtn").setAttribute("aria-pressed", String(soundOn));
+  try{ localStorage.setItem("duiyi-sound", soundOn ? "1" : "0"); }catch(e){}
+  ensureAudio(); if(soundOn) sfx("move");
+});
+$("#soundBtn").setAttribute("aria-pressed", String(soundOn));
+
+function copyText(text, ok, inputEl){
+  try{
+    navigator.clipboard.writeText(text).then(() => toast(ok), () => fallback());
+  }catch(e){ fallback(); }
+  function fallback(){ if(inputEl){ inputEl.focus(); inputEl.select(); toast("已选中，请按 Ctrl/⌘+C 复制"); } else toast("复制失败，浏览器不允许访问剪贴板"); }
+}
+function copyPgn(){
+  const c = rebuild(G.moves);
+  const res = G.result ? (G.result.winner === "w" ? "1-0" : G.result.winner === "b" ? "0-1" : "1/2-1/2") : "*";
+  c.header("Event", "对弈室", "Date", new Date(G.createdAt).toISOString().slice(0,10).replace(/-/g,"."), "White", nameOf(G.white, "w").replace(/（你）/, ""), "Black", nameOf(G.black, "b").replace(/（你）/, ""), "Result", res, "TimeControl", tcLabel(G.tc));
+  copyText(c.pgn() + (res !== "*" ? " " + res : ""), "棋谱（PGN）已复制");
+}
+function rematch(){
+  const st = newGameState(G.tc);
+  if(isLocal){
+    st.white = st.black = "local"; st.status = "playing"; st.creator = "local";
+    G = st; saveLocal(st); movesKey = null; onState(); return;
+  }
+  // same room, colours swapped
+  commit(Object.assign(st, {white: G.black, black: G.white, creator: G.creator, names: G.names,
+    status: G.white && G.black ? "playing" : "waiting",
+    notice: {to: opp(mySide === "both" ? "w" : mySide), text: "新的一局开始了（颜色互换）", t: now()}}));
+}
+
+/* ---------- lobby: nickname, join by code, recent rooms ---------- */
+$("#nick").value = myName;
+$("#nick").addEventListener("input", e => { const v = e.target.value.trim().slice(0, 16); if(v){ myName = v; lsSet("duiyi-name", v); } });
+function parseCode(v){
+  v = String(v || "").trim().toLowerCase();
+  const m = v.match(/#r-([a-z0-9]{4,12})/) || v.match(/^([a-z0-9]{4,12})$/);
+  return m ? m[1] : null;
+}
+function joinFromInput(){
+  ensureAudio();
+  const code = parseCode($("#joinCode").value);
+  if(!code){ toast("房间码是 6 位字母和数字，也可以直接粘贴邀请链接"); return; }
+  location.hash = "r-" + code;
+}
+$("#joinBtn").addEventListener("click", joinFromInput);
+$("#joinCode").addEventListener("keydown", e => { if(e.key === "Enter") joinFromInput(); });
+
+function renderGameList(){
+  const el = $("#gameList");
+  const rooms = loadRooms();
+  const ago = t => { const m = Math.round((Date.now() - t)/60000); return m < 1 ? "刚刚" : m < 60 ? `${m} 分钟前` : m < 1440 ? `${Math.round(m/60)} 小时前` : `${Math.round(m/1440)} 天前`; };
+  const stCN = g => g.status === "waiting" ? "等待好友加入" : g.status === "paused" ? "已暂停" : g.status === "over" ? (g.result ? (g.result.winner ? SIDE_CN[g.result.winner] + "胜" : "和棋") : "已结束") : `进行中 · 第 ${Math.floor((g.moves||[]).length/2)+1} 回合`;
+  const nm = (g, id) => !id ? "空位" : id === me ? "你" : ((g.names && g.names[id]) || "好友");
+  const rows = Object.keys(rooms).sort((a, b) => rooms[b].savedAt - rooms[a].savedAt).map(code => {
+    const r = rooms[code], g = r.G || {};
+    return `<div class="grow"><span class="gtc">${esc(tcLabel(g.tc))}</span>
+      <div class="gwho"><div class="n">♔${VS} ${esc(nm(g, g.white))} 对 ♚${VS} ${esc(nm(g, g.black))}</div><div class="s">${r.host ? "我开的房间" : "好友的房间"} · ${esc(code)} · ${stCN(g)} · ${ago(r.savedAt)}</div></div>
+      <div class="gact"><a class="btn sm ${g.status === "over" ? "" : "accent"}" href="#r-${esc(code)}">${g.status === "over" ? "查看" : "继续"}</a><button class="btn sm ghost" data-del="${esc(code)}" title="从列表移除">移除</button></div></div>`;
+  });
+  const lg = loadLocal();
+  if(lg && lg.moves && lg.moves.length && lg.status !== "over") rows.push(`<div class="grow"><span class="gtc">${esc(tcLabel(lg.tc))}</span><div class="gwho"><div class="n">同屏对战</div><div class="s">${Math.ceil(lg.moves.length/2)} 回合 · 未结束</div></div><div class="gact"><a class="btn sm" href="#local">继续</a></div></div>`);
+  el.innerHTML = rows.join("") || `<p class="empty">还没有房间。左边点「创建对局并邀请好友」开一个，或者在上面输入好友给你的房间码。</p>`;
+}
+$("#gameList").addEventListener("click", e => {
+  const b = e.target.closest("[data-del]"); if(!b) return;
+  if(b.dataset.armed !== "1"){ b.dataset.armed = "1"; b.textContent = "确认移除"; b.classList.add("danger"); setTimeout(() => { if(b.isConnected){ b.dataset.armed = ""; b.textContent = "移除"; b.classList.remove("danger"); } }, 3000); return; }
+  const r = loadRooms(); delete r[b.dataset.del]; saveRooms(r); renderGameList(); toast("已从列表移除");
+});
+
+/* ---------- routing ---------- */
+function route(){
+  const h = location.hash.slice(1);
+  if(h.startsWith("r-")){
+    const code = h.slice(2).toLowerCase();
+    if(!/^[a-z0-9]{4,12}$/.test(code)){ location.hash = ""; return; }
+    if(gid !== code || isLocal) openRoom(code);
+  } else if(h === "local"){
+    if(!isLocal) openLocal();
+  } else {
+    cleanupGame(); showView("lobby"); renderGameList();
+  }
+}
+window.addEventListener("hashchange", route);
+window.addEventListener("beforeunload", () => { if(peer) try{ peer.destroy(); }catch(e){} });
+
+/* ---------- boot ---------- */
+function boot(){
+  renderTcPicker();
+  $("#onlineNote").textContent = onlineReady
+    ? "创建后会得到一条邀请链接，好友打开就能加入，双方都不用注册登录。"
+    : "联网组件没有加载出来（可能是网络问题），现在只能同屏对战。刷新页面可以重试。";
+  $("#createOnline").disabled = !onlineReady;
+  setNet(onlineReady ? "idle" : "nolib");
+  route();
+}
+if(typeof Chess === "undefined"){
+  document.querySelector(".app").insertAdjacentHTML("beforeend", `<p class="empty">棋规引擎加载失败，请刷新页面重试。</p>`);
+} else boot();
+</script>
+
+</body>
+</html>
